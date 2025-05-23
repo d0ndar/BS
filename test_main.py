@@ -1086,8 +1086,8 @@ async def handle_all_messages(message: Message, state: FSMContext):
         task = {
             "title": data["title"],
             "description": data.get("description", ""),
-            "responsible_id": data.get("responsible_id"),
-            "priority": data.get("priority", 2),
+            "responsible_id": data.get("responsible_id", get_user(message.from_user.id)["user_id"]),
+            "priority": data.get("priority", 1),
             "deadline": data.get("deadline")
         }
         print(task)
@@ -1100,7 +1100,7 @@ async def create_task(message: Message, parts: dict):
     try:
         title = parts["title"]
         description = parts["description"] if len(parts) > 1 else ""
-        responsible_id = parts["responsible_id"] if len(parts) > 2 else user_data["user_id"]
+        responsible_id = parts["responsible_id"] if not None else user_data["user_id"]
         priority = parts["priority"] if len(parts) > 3 else 1
         deadline = parts["deadline"] if len(parts) > 4 else None
         print(title,description,responsible_id,priority,deadline)
