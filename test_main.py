@@ -1089,6 +1089,7 @@ async def handle_all_messages(message: Message, state: FSMContext):
             "priority": data.get("priority", 2),
             "deadline": deadline
         }
+        print(task)
         await create_task(message, task)
 
 
