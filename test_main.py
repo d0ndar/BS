@@ -1079,15 +1079,17 @@ async def handle_all_messages(message: Message, state: FSMContext):
 
     elif current_state == TaskStates.wait_deadline.state:
         deadline = None if message.text.lower() == "нет" else message.text
+        await state.update_data(deadline=deadline)
         data = await state.get_data()
         await state.clear()
         #task Задача 20 | ааа | 1 | 1 |  2025-09-0
-        print(data["title"])
-        print(data.get("description", ""))
-        print(data.get("responsible_id"))
-        print(data.get("priority"))
-        print(data.get("deadline"))
-        task = data["title"]+' | '+data.get("description", "")+' | '+data.get("responsible_id")+' | '+data.get("priority")+' | '+data.get("deadline")
+        task = {
+            "title": data["title"],
+            "description": data.get("description", ""),
+            "responsible_id": data.get("responsible_id"),
+            "priority": data.get("priority", 2),
+            "deadline": data.get("deadline")
+        }
         print(task)
         await create_task(message, task)
 
@@ -1096,13 +1098,11 @@ async def create_task(message: Message, parts: dict):
     user_data = await get_user(message.from_user.id)
 
     try:
-        parts = [p.strip() for p in parts]
-
-        title = parts[0]
-        description = parts[1] if len(parts) > 1 else ""
-        responsible_id = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else user_data["user_id"]
-        priority = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 1
-        deadline = parts[4] if len(parts) > 4 else None
+        title = parts["title"]
+        description = parts["description"] if len(parts) > 1 else ""
+        responsible_id = int(parts["responsible_id"]) if len(parts) > 2 and parts[2].isdigit() else user_data["user_id"]
+        priority = int(parts["priority"]) if len(parts) > 3 and parts[3].isdigit() else 1
+        deadline = parts["deadline"] if len(parts) > 4 else None
         print(title,description,responsible_id,priority,deadline)
         if priority not in (0, 1, 2):
             raise ValueError("Приоритет должен быть 0, 1 или 2")
