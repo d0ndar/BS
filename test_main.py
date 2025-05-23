@@ -1072,7 +1072,7 @@ async def handle_all_messages(message: Message, state: FSMContext):
         await message.answer("🔢 Введите приоритет (0-2, или 'нет'):")
 
     elif current_state == TaskStates.wait_priority.state:
-        priority = int(message.text) if message.text.isdigit() else 2
+        priority = int(message.text) if message.text.isdigit() else 1
         await state.update_data(priority=priority)
         await state.set_state(TaskStates.wait_deadline)
         await message.answer("⏳ Введите срок (YYYY-MM-DD, или 'нет'):")
@@ -1081,14 +1081,8 @@ async def handle_all_messages(message: Message, state: FSMContext):
         deadline = None if message.text.lower() == "нет" else message.text
         data = await state.get_data()
         await state.clear()
-
-        task = {
-            "title": data["title"],
-            "description": data.get("description", ""),
-            "responsible_id": data.get("responsible_id"),
-            "priority": data.get("priority", 2),
-            "deadline": deadline
-        }
+        #task Задача 20 | ааа | 1 | 1 |  2025-09-0
+        task = data["title"]+' | '+data.get("description", "")+' | '+data.get("responsible_id")+' | '+data.get("priority", 2)+' | '+deadline
         print(task)
         await create_task(message, task)
 
