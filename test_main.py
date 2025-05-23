@@ -1086,7 +1086,7 @@ async def handle_all_messages(message: Message, state: FSMContext):
         task = {
             "title": data["title"],
             "description": data.get("description", ""),
-            "responsible_id": data.get("responsible_id", get_user(message.from_user.id)["user_id"]),
+            "responsible_id": data["responsible_id"],
             "priority": data.get("priority", 1),
             "deadline": data.get("deadline")
         }
