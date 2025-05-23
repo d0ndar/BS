@@ -1100,7 +1100,7 @@ async def create_task(message: Message, parts: dict):
     try:
         title = parts["title"]
         description = parts["description"] if len(parts) > 1 else ""
-        responsible_id = parts["responsible_id"] if not(None) else user_data["user_id"]
+        responsible_id = parts["responsible_id"] if None else user_data["user_id"]
         priority = parts["priority"] if len(parts) > 3 else 1
         deadline = parts["deadline"] if len(parts) > 4 else None
         print(title,description,responsible_id,priority,deadline)
