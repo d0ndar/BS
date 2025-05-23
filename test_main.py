@@ -1082,7 +1082,12 @@ async def handle_all_messages(message: Message, state: FSMContext):
         data = await state.get_data()
         await state.clear()
         #task Задача 20 | ааа | 1 | 1 |  2025-09-0
-        task = data["title"]+' | '+data.get("description", "")+' | '+data.get("responsible_id")+' | '+data.get("priority")+' | '+deadline
+        print(data["title"])
+        print(data.get("description", ""))
+        print(data.get("responsible_id"))
+        print(data.get("priority"))
+        print(data.get("deadline"))
+        task = data["title"]+' | '+data.get("description", "")+' | '+data.get("responsible_id")+' | '+data.get("priority")+' | '+data.get("deadline")
         print(task)
         await create_task(message, task)
 
