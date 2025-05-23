@@ -1103,7 +1103,7 @@ async def create_task(message: Message, parts: dict):
         responsible_id = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else user_data["user_id"]
         priority = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 1
         deadline = parts[4] if len(parts) > 4 else None
-
+        print(title,description,responsible_id,priority,deadline)
         if priority not in (0, 1, 2):
             raise ValueError("Приоритет должен быть 0, 1 или 2")
 
