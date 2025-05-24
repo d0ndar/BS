@@ -906,7 +906,6 @@ async def get_info_for_deal(m: Message, state: FSMContext):
         await m.answer("🔢 Введите ID стадии сделки:")
 
     elif current_state == DealStates.wait_stage.state:
-        user_data = await get_user(m.from_user.id)
         data = await state.get_data()
         await state.clear()
         deal = {
@@ -971,20 +970,17 @@ async def cmd_comment(m: Message, state: FSMContext):
 
     # Интерактивный режим
     await state.set_state(CommentStates.wait_task_id)
-    await m.answer("🔢 Введите ID задачи:")
+    await m.answer("🔢 Введите ID задачи к которой хотите добавить комментарий:")
 
 async def get_info_for_comment(m: Message, state: FSMContext):
     current_state = await state.get_state()
 
     if current_state == CommentStates.wait_task_id.state:
         await state.update_data(task_id=m.text)
-        await state.set_state(DealStates.wait_address)
-        await m.answer("🔢 Введите ID задачи к которой хотите добавить комментарий:")
+        await state.set_state(CommentStates.wait_comment)
+        await m.answer("💬 Введите комментарий:")
 
     elif current_state == CommentStates.wait_comment.state:
-        await state.update_data(comment=m.text)
-        await state.set_state(DealStates.wait_stage)
-        await m.answer("💬 Введите комментарий:")
         data = await state.get_data()
         await state.clear()
         comment = {
