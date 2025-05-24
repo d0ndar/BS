@@ -59,28 +59,12 @@ class TaskHistoryStates(StatesGroup):
     """Состояния для вывода истории изменений задачи."""
     waiting_for_task_id = State()
 
-
 class TaskStates(StatesGroup):
-    """Состояния для интерактивного ввода задачи."""
     wait_title = State()
     wait_description = State()
     wait_responsible = State()
     wait_priority = State()
     wait_deadline = State()
-
-
-class DealStates(StatesGroup):
-    """Состояния для интерактивного ввода сделки."""
-    wait_title = State()
-    wait_address = State()
-    wait_stage = State()
-
-
-class CommentStates(StatesGroup):
-    """Состояния для интерактивного добавления комментария."""
-    wait_task_id = State()
-    wait_comment = State()
-
 
 async def get_user(chat_id: int) -> Optional[dict]:
     """Получает пользователя из базы данных по chat_id."""
@@ -863,87 +847,30 @@ async def cmd_tasks(m: Message):
 
 
 @dp.message(Command("deal"))
-async def cmd_deal(m: Message, state: FSMContext):
+async def cmd_deal(m: Message):
     """Создание сделки: /deal Название ЖК | Адрес | Стадия_ID"""
     user_data = await get_user(m.from_user.id)
     if not user_data or not user_data.get("is_admin"):
         return await m.answer("❗ Требуются права администратора. Авторизуйтесь через /start")
-    parts = m.text.split(maxsplit=1)[1].split('|')
 
-    # Режим одной строки (/deal Название ЖК | Адрес | ID_стадии)
-    if len(parts) > 1:
-        try:
-            title, address, stage_id = parts[0], parts[1], parts[2]
-
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    f"https://{user_data['domain']}/rest/crm.deal.add.json",
-                    params={"auth": user_data["access_token"]},
-                    json={
-                        "fields": {
-                            "TITLE": title,
-                            "COMMENTS": address,
-                            "STAGE_ID": stage_id,
-                            "ASSIGNED_BY_ID": user_data["user_id"]
-                        }
-                    }
-                )
-                data = resp.json()
-
-                if data.get('error'):
-                    error_msg = data.get('error_description', 'Неизвестная ошибка Bitrix')
-                    raise ValueError(f"Bitrix API: {error_msg}")
-
-                deal_id = data.get('result')
-                await m.answer(f"✅ Сделка создана! ID: {deal_id}")
-
-        except (IndexError, ValueError) as e:
-            await m.answer(f"❌ Ошибка: {str(e)}\nФормат: /deal Название ЖК | Адрес | ID_стадии")
-        except Exception as e:
-            logging.error(f"Ошибка создания сделки: {str(e)}", exc_info=True)
-            await m.answer(f"⚠️ Ошибка: {str(e)}")
-
-    # Интерактивный режим
-    await state.set_state(DealStates.wait_title)
-    await m.answer("🏢 Введите название ЖК:")
-
-@dp.message()
-async def get_info_for_deal(m: Message, state: FSMContext):
-    current_state = await state.get_state()
-
-    if current_state == DealStates.wait_title.state:
-        await state.update_data(title=m.text)
-        await state.set_state(DealStates.wait_address)
-        await m.answer("📍 Введите адрес:")
-
-    elif current_state == DealStates.wait_address.state:
-        await state.update_data(address=m.text)
-        await state.set_state(DealStates.wait_stage)
-        await m.answer("🔢 Введите ID стадии сделки:")
-
-    elif current_state == DealStates.wait_stage.state:
-        data = await state.get_data()
-        await state.clear()
-        deal = {
-            "title": data["title"],
-            "address": data["adress"],
-            "Stage": data["stage"]
-        }
-        await create_deal(m, deal)
-
-
-async def create_deal(m: Message, parts: dict):
-    user_data = await get_user(m.from_user.id)
     try:
+        parts = m.text.split(maxsplit=1)[1].split('|')
+        parts = [p.strip() for p in parts]
+
+        if len(parts) < 3:
+            raise ValueError("Недостаточно параметров. Формат: /deal Название ЖК | Адрес | ID_стадии")
+
+        title, address, stage_id = parts[0], parts[1], parts[2]
+
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"https://{user_data['domain']}/rest/crm.deal.add.json",
                 params={"auth": user_data["access_token"]},
                 json={
                     "fields": {
-                        "TITLE": parts["title"],
-                        "ADDRESS": parts["address"],
-                        "STAGE_ID": parts["stage_id"],
+                        "TITLE": title,
+                        "COMMENTS": address,
+                        "STAGE_ID": stage_id,
                         "ASSIGNED_BY_ID": user_data["user_id"]
                     }
                 }
@@ -957,69 +884,36 @@ async def create_deal(m: Message, parts: dict):
             deal_id = data.get('result')
             await m.answer(f"✅ Сделка создана! ID: {deal_id}")
 
+    except (IndexError, ValueError) as e:
+        await m.answer(f"❌ Ошибка: {str(e)}\nФормат: /deal Название ЖК | Адрес | ID_стадии")
     except Exception as e:
         logging.error(f"Ошибка создания сделки: {str(e)}", exc_info=True)
         await m.answer(f"⚠️ Ошибка: {str(e)}")
 
 
-
 @dp.message(Command("comment"))
-async def cmd_comment(m: Message, state: FSMContext):
+async def cmd_comment(m: Message):
     """Добавить комментарий к задаче: /comment [ID задачи] | Комментарий"""
     user_data = await get_user(m.from_user.id)
     if not user_data:
         return await m.answer("❗ Сначала авторизуйтесь через /start")
 
-    args = m.text.split(maxsplit=1)
-
-    # Режим одной строки (/comment ID_задачи | Текст комментария)
-    if len(args) > 1:
-
-        try:
-            parts = [p.strip() for p in args[1].split("|", 1)]
-            if len(parts) < 2:
-                raise ValueError("Неверный формат команды")
-            comment = {
-                "task_id": parts[0],
-                "comment": parts[1]
-            }
-            return await add_comment_to_task(m, comment)
-
-        except Exception as e:
-            await m.answer(f"❌ Ошибка: {str(e)}\nФормат: /comment ID_задачи | Текст комментария")
-
-    # Интерактивный режим
-    await state.set_state(CommentStates.wait_task_id)
-    await m.answer("🔢 Введите ID задачи к которой хотите добавить комментарий:")
-
-@dp.message()
-async def get_info_for_comment(m: Message, state: FSMContext):
-    current_state = await state.get_state()
-
-    if current_state == CommentStates.wait_task_id.state:
-        await state.update_data(task_id=m.text)
-        await state.set_state(CommentStates.wait_comment)
-        await m.answer("💬 Введите комментарий:")
-
-    elif current_state == CommentStates.wait_comment.state:
-        await state.update_data(comment=m.text)
-        data = await state.get_data()
-        await state.clear()
-        comment = {
-            "task_id": data["task_id"],
-            "comment": data["comment"]
-        }
-        await add_comment_to_task(m, comment)
-
-async def add_comment_to_task(m: Message, parts: dict):
-    user_data = await get_user(m.from_user.id)
     try:
+        # Парсим аргументы
+        parts = m.text.split(maxsplit=1)[1].split('|', 1)
+        if len(parts) < 2:
+            raise ValueError("Неверный формат команды")
+
+        task_id = parts[0].strip()
+        comment_text = parts[1].strip()
+
+        # Проверяем доступ к задаче
         async with httpx.AsyncClient() as client:
             # Проверка существования задачи
             task_resp = await client.get(
                 f"https://{user_data['domain']}/rest/tasks.task.get.json",
                 params={
-                    "taskId": parts["task_id"],
+                    "taskId": task_id,
                     "auth": user_data["access_token"]
                 }
             )
@@ -1032,10 +926,10 @@ async def add_comment_to_task(m: Message, parts: dict):
                 f"https://{user_data['domain']}/rest/task.commentitem.add.json",
                 params={"auth": user_data["access_token"]},
                 json={
-                    "TASK_ID": parts["task_id"],
+                    "TASK_ID": task_id,
                     "fields": {
                         "AUTHOR_ID": user_data["user_id"],
-                        "POST_MESSAGE": parts["comment"]
+                        "POST_MESSAGE": comment_text
                     }
                 }
             )
@@ -1045,11 +939,14 @@ async def add_comment_to_task(m: Message, parts: dict):
                 error_msg = comment_data.get('error_description', 'Ошибка добавления комментария')
                 raise ValueError(error_msg)
 
-            await m.answer(f"💬 Комментарий добавлен к задаче {parts["task_id"]}")
+            await m.answer(f"💬 Комментарий добавлен к задаче {task_id}")
 
+    except (IndexError, ValueError) as e:
+        await m.answer(f"❌ Ошибка: {str(e)}\nФормат: /comment [ID задачи] | [Текст комментария]")
     except Exception as e:
-        logging.error(f"Ошибка добавления комментария: {str(e)}", exc_info=True)
+        logging.error(f"Comment error: {str(e)}", exc_info=True)
         await m.answer(f"⚠️ Ошибка: {str(e)}")
+
 
 @dp.message(Command("stages"))
 async def cmd_stages(m: Message):
@@ -1125,19 +1022,19 @@ async def cmd_employees(m: Message):
 
 
 @dp.message(Command("task"))
-async def cmd_task(m: Message, state: FSMContext):
+async def cmd_task(message: Message, state: FSMContext):
     """Создание задачи"""
-    user_data = await get_user(m.from_user.id)
+    user_data = await get_user(message.from_user.id)
     if not user_data:
-        return await m.answer("❗ Сначала авторизуйтесь: /start")
+        return await message.answer("❗ Сначала авторизуйтесь: /start")
 
-    args = m.text.split(maxsplit=1)
+    args = message.text.split(maxsplit=1)
 
     # Режим одной строки
     if len(args) > 1:
         parts = [p.strip() for p in args[1].split("|")]
         if not parts[0]:
-            return await m.answer("❌ Название задачи обязательно!")
+            return await message.answer("❌ Название задачи обязательно!")
 
         task = {
             "title": parts[0],
@@ -1146,42 +1043,42 @@ async def cmd_task(m: Message, state: FSMContext):
             "priority": int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 2,
             "deadline": parts[4] if len(parts) > 4 else None
         }
-        return await create_task(m, task)
+        return await create_task(message, task)
 
     # Интерактивный режим
     await state.set_state(TaskStates.wait_title)
-    await m.answer("📝 Введите название задачи:")
+    await message.answer("📝 Введите название задачи:")
 
 
 @dp.message()
-async def get_info_for_task(m: Message, state: FSMContext):
+async def handle_all_messages(message: Message, state: FSMContext):
     current_state = await state.get_state()
 
     if current_state == TaskStates.wait_title.state:
-        await state.update_data(title=m.text)
+        await state.update_data(title=message.text)
         await state.set_state(TaskStates.wait_description)
-        await m.answer("📄 Введите описание (или 'нет'):")
+        await message.answer("📄 Введите описание (или 'нет'):")
 
     elif current_state == TaskStates.wait_description.state:
-        desc = "" if m.text.lower() == "нет" else m.text
+        desc = "" if message.text.lower() == "нет" else message.text
         await state.update_data(description=desc)
         await state.set_state(TaskStates.wait_responsible)
-        await m.answer("👤 Введите ID исполнителя ('нет' - для пустого):")
+        await message.answer("👤 Введите ID исполнителя (или 'нет'):")
 
     elif current_state == TaskStates.wait_responsible.state:
-        resp_id = int(m.text) if m.text.isdigit() else None
+        resp_id = int(message.text) if message.text.isdigit() else None
         await state.update_data(responsible_id=resp_id)
         await state.set_state(TaskStates.wait_priority)
-        await m.answer("🔢 Введите приоритет (0-2, или 'нет'):")
+        await message.answer("🔢 Введите приоритет (0-2, или 'нет'):")
 
     elif current_state == TaskStates.wait_priority.state:
-        priority = int(m.text) if m.text.isdigit() else 1
+        priority = int(message.text) if message.text.isdigit() else 1
         await state.update_data(priority=priority)
         await state.set_state(TaskStates.wait_deadline)
-        await m.answer("⏳ Введите срок (YYYY-MM-DD, или 'нет'):")
+        await message.answer("⏳ Введите срок (YYYY-MM-DD, или 'нет'):")
 
     elif current_state == TaskStates.wait_deadline.state:
-        deadline = None if m.text.lower() == "нет" else m.text
+        deadline = None if message.text.lower() == "нет" else message.text
         await state.update_data(deadline=deadline)
         data = await state.get_data()
         await state.clear()
@@ -1193,18 +1090,21 @@ async def get_info_for_task(m: Message, state: FSMContext):
             "priority": data.get("priority", 1),
             "deadline": data.get("deadline")
         }
-        await create_task(m, task)
+        print(task)
+        await create_task(message, task)
 
 
-async def create_task(m: Message, parts: dict):
-    user_data = await get_user(m.from_user.id)
+async def create_task(message: Message, parts: dict):
+    user_data = await get_user(message.from_user.id)
 
     try:
         title = parts["title"]
         description = parts["description"] if len(parts) > 1 else ""
+        responsible_id = parts["responsible_id"] if not(None) else user_data["user_id"]
         responsible_id = parts["responsible_id"] if None else user_data["user_id"]
         priority = parts["priority"] if len(parts) > 3 else 1
         deadline = parts["deadline"] if len(parts) > 4 else None
+        print(title,description,responsible_id,priority,deadline)
         if priority not in (0, 1, 2):
             raise ValueError("Приоритет должен быть 0, 1 или 2")
 
@@ -1252,14 +1152,14 @@ async def create_task(m: Message, parts: dict):
                 logging.error(f"Invalid response structure: {data}")
                 raise ValueError("Некорректная структура ответа")
 
-            await m.answer(f"✅ Задача создана! ID: {task_id}")
+            await message.answer(f"✅ Задача создана! ID: {task_id}")
 
     except (IndexError, ValueError) as e:
-        await m.answer(
+        await message.answer(
             f"❌ Ошибка: {str(e)}\nФормат: /task Название | Описание | [ID_исполнителя] | [Приоритет] | [Срок исполнения]")
     except Exception as e:
         logging.error(f"Unexpected error: {str(e)}", exc_info=True)
-        await m.answer(f"⚠️ Системная ошибка: {str(e)}")
+        await message.answer(f"⚠️ Системная ошибка: {str(e)}")
 
 
 
@@ -1269,9 +1169,9 @@ async def create_task(m: Message, parts: dict):
 async def cmd_deals(m: Message):
     """Показать список сделок"""
     user_data = await get_user(m.from_user.id)
-    if not user_data or not user_data.get("is_admin"):
-        return await m.answer("❗ Требуются права администратора. Авторизуйтесь через /start")
-    print(not user_data.get("is_admin") + "is_admin")
+    if not user_data:
+        return await m.answer("❗ Сначала авторизуйтесь через /start")
+
     try:
         domain = user_data['domain']
         user_id = user_data["user_id"]
