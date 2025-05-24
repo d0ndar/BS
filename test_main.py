@@ -976,24 +976,22 @@ async def cmd_comment(m: Message, state: FSMContext):
 async def get_info_for_comment(m: Message, state: FSMContext):
     current_state = await state.get_state()
 
-    if current_state == CommentStates.wait_id.state:
+    if current_state == CommentStates.wait_task_id.state:
         await state.update_data(task_id=m.text)
         await state.set_state(DealStates.wait_address)
         await m.answer("🔢 Введите ID задачи к которой хотите добавить комментарий:")
 
-    elif current_state == DealStates.wait_address.state:
+    elif current_state == CommentStates.wait_comment.state:
         await state.update_data(comment=m.text)
         await state.set_state(DealStates.wait_stage)
         await m.answer("💬 Введите комментарий:")
-
-    elif current_state == DealStates.wait_stage.state:
         data = await state.get_data()
         await state.clear()
-        deal = {
+        comment = {
             "task_id": data["task_id"],
             "comment": data["comment"]
         }
-        await create_deal(m, deal)
+        await add_comment_to_task(m, comment)
 
 async def add_comment_to_task(m: Message, parts: dict):
     user_data = await get_user(m.from_user.id)
