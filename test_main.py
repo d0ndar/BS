@@ -965,7 +965,7 @@ async def cmd_comment(m: Message, state: FSMContext):
                 "task_id": parts[0],
                 "comment": parts[1]
             }
-            await add_comment_to_task(m, user_data, comment)
+            await add_comment_to_task(m, comment)
         except Exception as e:
             await m.answer(f"❌ Ошибка: {str(e)}\nФормат: /comment ID_задачи | Текст комментария")
         return
