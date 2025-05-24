@@ -868,25 +868,40 @@ async def cmd_deal(m: Message, state: FSMContext):
     user_data = await get_user(m.from_user.id)
     if not user_data or not user_data.get("is_admin"):
         return await m.answer("❗ Требуются права администратора. Авторизуйтесь через /start")
-    args = m.text.split(maxsplit=1)
+    parts = m.text.split(maxsplit=1)[1].split('|')
 
     # Режим одной строки (/deal Название ЖК | Адрес | ID_стадии)
-    if len(args) > 1:
+    if len(parts) > 1:
         try:
-            parts = [p.strip() for p in args[1].split("|")]
-            if len(parts) < 3:
-                raise ValueError("Недостаточно параметров")
+            title, address, stage_id = parts[0], parts[1], parts[2]
 
-            await create_deal(
-                message=m,
-                user_data=user_data,
-                title=parts[0],
-                address=parts[1],
-                stage_id=parts[2]
-            )
-        except Exception as e:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"https://{user_data['domain']}/rest/crm.deal.add.json",
+                    params={"auth": user_data["access_token"]},
+                    json={
+                        "fields": {
+                            "TITLE": title,
+                            "COMMENTS": address,
+                            "STAGE_ID": stage_id,
+                            "ASSIGNED_BY_ID": user_data["user_id"]
+                        }
+                    }
+                )
+                data = resp.json()
+
+                if data.get('error'):
+                    error_msg = data.get('error_description', 'Неизвестная ошибка Bitrix')
+                    raise ValueError(f"Bitrix API: {error_msg}")
+
+                deal_id = data.get('result')
+                await m.answer(f"✅ Сделка создана! ID: {deal_id}")
+
+        except (IndexError, ValueError) as e:
             await m.answer(f"❌ Ошибка: {str(e)}\nФормат: /deal Название ЖК | Адрес | ID_стадии")
-        return
+        except Exception as e:
+            logging.error(f"Ошибка создания сделки: {str(e)}", exc_info=True)
+            await m.answer(f"⚠️ Ошибка: {str(e)}")
 
     # Интерактивный режим
     await state.set_state(DealStates.wait_title)
@@ -959,6 +974,7 @@ async def cmd_comment(m: Message, state: FSMContext):
 
     # Режим одной строки (/comment ID_задачи | Текст комментария)
     if len(args) > 1:
+
         try:
             parts = [p.strip() for p in args[1].split("|", 1)]
             if len(parts) < 2:
@@ -967,10 +983,10 @@ async def cmd_comment(m: Message, state: FSMContext):
                 "task_id": parts[0],
                 "comment": parts[1]
             }
-            await add_comment_to_task(m, comment)
+            return await add_comment_to_task(m, comment)
+
         except Exception as e:
             await m.answer(f"❌ Ошибка: {str(e)}\nФормат: /comment ID_задачи | Текст комментария")
-        return
 
     # Интерактивный режим
     await state.set_state(CommentStates.wait_task_id)
@@ -986,6 +1002,7 @@ async def get_info_for_comment(m: Message, state: FSMContext):
         await m.answer("💬 Введите комментарий:")
 
     elif current_state == CommentStates.wait_comment.state:
+        await state.update_data(comment=m.text)
         data = await state.get_data()
         await state.clear()
         comment = {
