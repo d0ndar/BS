@@ -1154,7 +1154,7 @@ async def cmd_task(m: Message, state: FSMContext):
 
 
 @dp.message()
-async def handle_all_messages(m: Message, state: FSMContext):
+async def get_info_for_task(m: Message, state: FSMContext):
     current_state = await state.get_state()
 
     if current_state == TaskStates.wait_title.state:
