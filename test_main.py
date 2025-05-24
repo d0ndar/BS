@@ -915,6 +915,7 @@ async def get_info_for_deal(m: Message, state: FSMContext):
         }
         await create_deal(m, deal)
 
+@dp.message()
 async def create_deal(m: Message, parts: dict):
     user_data = await get_user(m.from_user.id)
     try:
@@ -974,6 +975,7 @@ async def cmd_comment(m: Message, state: FSMContext):
     await state.set_state(CommentStates.wait_task_id)
     await m.answer("🔢 Введите ID задачи к которой хотите добавить комментарий:")
 
+@dp.message()
 async def get_info_for_comment(m: Message, state: FSMContext):
     current_state = await state.get_state()
 
