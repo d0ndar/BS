@@ -59,6 +59,7 @@ class TaskHistoryStates(StatesGroup):
     """Состояния для вывода истории изменений задачи."""
     waiting_for_task_id = State()
 
+
 class TaskStates(StatesGroup):
     """Состояния для интерактивного ввода задачи."""
     wait_title = State()
@@ -66,11 +67,20 @@ class TaskStates(StatesGroup):
     wait_responsible = State()
     wait_priority = State()
     wait_deadline = State()
+
+
 class DealStates(StatesGroup):
     """Состояния для интерактивного ввода сделки."""
     wait_title = State()
     wait_address = State()
     wait_stage = State()
+
+
+class CommentStates(StatesGroup):
+    """Состояния для интерактивного ввода сделки."""
+    wait_id = State()
+    wait_comment = State()
+
 
 async def get_user(chat_id: int) -> Optional[dict]:
     """Получает пользователя из базы данных по chat_id."""
@@ -938,28 +948,62 @@ async def create_deal(m: Message, parts: dict):
 
 
 @dp.message(Command("comment"))
-async def cmd_comment(m: Message):
+async def cmd_comment(m: Message, state: FSMContext):
     """Добавить комментарий к задаче: /comment [ID задачи] | Комментарий"""
     user_data = await get_user(m.from_user.id)
     if not user_data:
         return await m.answer("❗ Сначала авторизуйтесь через /start")
 
+    args = m.text.split(maxsplit=1)
+
+    # Режим одной строки (/comment ID_задачи | Текст комментария)
+    if len(args) > 1:
+        try:
+            parts = [p.strip() for p in args[1].split("|", 1)]
+            if len(parts) < 2:
+                raise ValueError("Неверный формат команды")
+
+            task_id, comment_text = parts[0], parts[1]
+            await add_comment_to_task(m, user_data, task_id, comment_text)
+        except Exception as e:
+            await m.answer(f"❌ Ошибка: {str(e)}\nФормат: /comment ID_задачи | Текст комментария")
+        return
+
+    # Интерактивный режим
+    await state.set_state(CommentStates.wait_task_id)
+    await m.answer("🔢 Введите ID задачи:")
+
+async def get_info_for_comment(m: Message, state: FSMContext):
+    current_state = await state.get_state()
+
+    if current_state == CommentStates.wait_id.state:
+        await state.update_data(task_id=m.text)
+        await state.set_state(DealStates.wait_address)
+        await m.answer("🔢 Введите ID задачи к которой хотите добавить комментарий:")
+
+    elif current_state == DealStates.wait_address.state:
+        await state.update_data(comment=m.text)
+        await state.set_state(DealStates.wait_stage)
+        await m.answer("💬 Введите комментарий:")
+
+    elif current_state == DealStates.wait_stage.state:
+        data = await state.get_data()
+        await state.clear()
+        deal = {
+            "task_id": data["task_id"],
+            "comment": data["comment"]
+        }
+        await create_deal(m, deal)
+
+async def add_comment_to_task(message: Message, parts: dict):
+    user_data = await get_user(m.from_user.id)
     try:
-        # Парсим аргументы
-        parts = m.text.split(maxsplit=1)[1].split('|', 1)
-        if len(parts) < 2:
-            raise ValueError("Неверный формат команды")
-
-        task_id = parts[0].strip()
-        comment_text = parts[1].strip()
-
-        # Проверяем доступ к задаче
         async with httpx.AsyncClient() as client:
             # Проверка существования задачи
             task_resp = await client.get(
                 f"https://{user_data['domain']}/rest/tasks.task.get.json",
                 params={
-                    "taskId": task_id,
+                    "taskId": parts["task_id"],
                     "auth": user_data["access_token"]
                 }
             )
@@ -972,10 +1016,10 @@ async def cmd_comment(m: Message):
                 f"https://{user_data['domain']}/rest/task.commentitem.add.json",
                 params={"auth": user_data["access_token"]},
                 json={
-                    "TASK_ID": task_id,
+                    "TASK_ID": parts["task_id"],
                     "fields": {
                         "AUTHOR_ID": user_data["user_id"],
-                        "POST_MESSAGE": comment_text
+                        "POST_MESSAGE": parts["comment"]
                     }
                 }
             )
@@ -985,14 +1029,11 @@ async def cmd_comment(m: Message):
                 error_msg = comment_data.get('error_description', 'Ошибка добавления комментария')
                 raise ValueError(error_msg)
 
-            await m.answer(f"💬 Комментарий добавлен к задаче {task_id}")
+            await message.answer(f"💬 Комментарий добавлен к задаче {task_id}")
 
-    except (IndexError, ValueError) as e:
-        await m.answer(f"❌ Ошибка: {str(e)}\nФормат: /comment [ID задачи] | [Текст комментария]")
     except Exception as e:
-        logging.error(f"Comment error: {str(e)}", exc_info=True)
-        await m.answer(f"⚠️ Ошибка: {str(e)}")
-
+        logging.error(f"Ошибка добавления комментария: {str(e)}", exc_info=True)
+        await message.answer(f"⚠️ Ошибка: {str(e)}")
 
 @dp.message(Command("stages"))
 async def cmd_stages(m: Message):
