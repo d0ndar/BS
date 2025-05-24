@@ -78,7 +78,7 @@ class DealStates(StatesGroup):
 
 class CommentStates(StatesGroup):
     """Состояния для интерактивного ввода сделки."""
-    wait_id = State()
+    wait_task_id = State()
     wait_comment = State()
 
 
@@ -995,7 +995,7 @@ async def get_info_for_comment(m: Message, state: FSMContext):
         }
         await create_deal(m, deal)
 
-async def add_comment_to_task(message: Message, parts: dict):
+async def add_comment_to_task(m: Message, parts: dict):
     user_data = await get_user(m.from_user.id)
     try:
         async with httpx.AsyncClient() as client:
@@ -1029,11 +1029,11 @@ async def add_comment_to_task(message: Message, parts: dict):
                 error_msg = comment_data.get('error_description', 'Ошибка добавления комментария')
                 raise ValueError(error_msg)
 
-            await message.answer(f"💬 Комментарий добавлен к задаче {task_id}")
+            await m.answer(f"💬 Комментарий добавлен к задаче {parts["task_id"]}")
 
     except Exception as e:
         logging.error(f"Ошибка добавления комментария: {str(e)}", exc_info=True)
-        await message.answer(f"⚠️ Ошибка: {str(e)}")
+        await m.answer(f"⚠️ Ошибка: {str(e)}")
 
 @dp.message(Command("stages"))
 async def cmd_stages(m: Message):
