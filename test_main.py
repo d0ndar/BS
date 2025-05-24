@@ -892,6 +892,7 @@ async def cmd_deal(m: Message, state: FSMContext):
     await state.set_state(DealStates.wait_title)
     await m.answer("🏢 Введите название ЖК:")
 
+@dp.message()
 async def get_info_for_deal(m: Message, state: FSMContext):
     current_state = await state.get_state()
 
@@ -915,7 +916,7 @@ async def get_info_for_deal(m: Message, state: FSMContext):
         }
         await create_deal(m, deal)
 
-@dp.message()
+
 async def create_deal(m: Message, parts: dict):
     user_data = await get_user(m.from_user.id)
     try:
