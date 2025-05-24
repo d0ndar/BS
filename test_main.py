@@ -1214,7 +1214,7 @@ async def cmd_deals(m: Message):
     user_data = await get_user(m.from_user.id)
     if not user_data or not user_data.get("is_admin"):
         return await m.answer("❗ Требуются права администратора. Авторизуйтесь через /start")
-
+    print(not user_data.get("is_admin"))
     try:
         domain = user_data['domain']
         user_id = user_data["user_id"]
