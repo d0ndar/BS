@@ -1212,8 +1212,8 @@ async def create_task(m: Message, parts: dict):
 async def cmd_deals(m: Message):
     """Показать список сделок"""
     user_data = await get_user(m.from_user.id)
-    if not user_data:
-        return await m.answer("❗ Сначала авторизуйтесь через /start")
+    if not user_data or not user_data.get("is_admin"):
+        return await m.answer("❗ Требуются права администратора. Авторизуйтесь через /start")
 
     try:
         domain = user_data['domain']
