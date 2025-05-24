@@ -961,9 +961,11 @@ async def cmd_comment(m: Message, state: FSMContext):
             parts = [p.strip() for p in args[1].split("|", 1)]
             if len(parts) < 2:
                 raise ValueError("Неверный формат команды")
-
-            task_id, comment_text = parts[0], parts[1]
-            await add_comment_to_task(m, user_data, task_id, comment_text)
+            comment = {
+                "task_id": parts[0],
+                "comment": parts[1]
+            }
+            await add_comment_to_task(m, user_data, comment)
         except Exception as e:
             await m.answer(f"❌ Ошибка: {str(e)}\nФормат: /comment ID_задачи | Текст комментария")
         return
